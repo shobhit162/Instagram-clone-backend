@@ -1,92 +1,101 @@
-const express = require('express')
-const router = express.Router()
-const mongoose = require('mongoose')
-const requireLogin = require('../middleware/requireLogin')
-const Post = mongoose.model("Post")
-const User = mongoose.model("User")
+const express = require('express');
+const router = express.Router();
+const mongoose = require('mongoose');
+const requireLogin = require('../middleware/requireLogin');
+const Post = mongoose.model("Post");
+const User = mongoose.model("User");
 
-
-router.get('/user/:id',requireLogin,(req,res)=>{
-    User.findOne({_id:req.params.id})
-    .select("-password")
-    .then(user=>{
-       Post.find({postedBy:req.params.id})
-       .populate("postedBy","_id name")
-       .exec((err,posts)=>{
-           if(err){
-               return res.status(422).json({error:err})
-           }
-           res.json({user,posts})
-       })
-    }).catch(err=>{
-        return res.status(404).json({error:"User not found"})
-    })
-})
-
-
-router.put('/follow',requireLogin,(req,res)=>{
-    User.findByIdAndUpdate(req.body.followId,{
-        $push:{followers:req.user._id}
-    },{
-        new:true
-    },(err,result)=>{
-        if(err){
-            return res.status(422).json({error:err})
+router.get('/user/:id', requireLogin, async (req, res) => {
+    try {
+        const user = await User.findOne({ _id: req.params.id }).select("-password");
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
         }
-        User.findByIdAndUpdate(req.user._id,{
-            $push:{following:req.body.followId}
-
-        },{new:true}).select("-password").then(result=>{
-            res.json(result)
-        }).catch(err=>{
-            return res.status(422).json({error:err})
-        })
+        const posts = await Post.find({ postedBy: req.params.id }).populate("postedBy", "_id name");
+        res.json({ user, posts });
+    } catch (err) {
+        res.status(422).json({ error: err });
     }
-    )
-})
-router.put('/unfollow',requireLogin,(req,res)=>{
-    User.findByIdAndUpdate(req.body.unfollowId,{
-        $pull:{followers:req.user._id}
-    },{
-        new:true
-    },(err,result)=>{
-        if(err){
-            return res.status(422).json({error:err})
-        }
-        User.findByIdAndUpdate(req.user._id,{
-            $pull:{following:req.body.unfollowId}
+});
 
-        },{new:true}).select("-password").then(result=>{
-            res.json(result)
-        }).catch(err=>{
-            return res.status(422).json({error:err})
-        })
+router.put('/follow', requireLogin, async (req, res) => {
+    try {
+        const followResult = await User.findByIdAndUpdate(
+            req.body.followId,
+            { $push: { followers: req.user._id } },
+            { new: true }
+        );
+
+        if (!followResult) {
+            return res.status(422).json({ error: "Failed to follow user" });
+        }
+
+        const result = await User.findByIdAndUpdate(
+            req.user._id,
+            { $push: { following: req.body.followId } },
+            { new: true }
+        ).select("-password");
+
+        res.json(result);
+    } catch (err) {
+        res.status(422).json({ error: err });
     }
-    )
-})
+});
 
+router.put('/unfollow', requireLogin, async (req, res) => {
+    try {
+        const unfollowResult = await User.findByIdAndUpdate(
+            req.body.unfollowId,
+            { $pull: { followers: req.user._id } },
+            { new: true }
+        );
 
-router.put('/updatepic',requireLogin,(req,res)=>{
-    User.findByIdAndUpdate(req.user._id,{$set:{pic:req.body.pic}},{new:true},
-        (err,result)=>{
-        if(err){
-            return res.status(422).json({error:"pic cannot post"})
+        if (!unfollowResult) {
+            return res.status(422).json({ error: "Failed to unfollow user" });
         }
-        res.json(result)
-    })
-})
 
+        const result = await User.findByIdAndUpdate(
+            req.user._id,
+            { $pull: { following: req.body.unfollowId } },
+            { new: true }
+        ).select("-password");
 
-router.post('/search-users',(req,res)=>{
-    let userPattern = new RegExp("^"+req.body.query)
-    User.find({email:{$regex:userPattern}})
-    .select("_id email")
-    .then(user=>{
-        res.json({user})
-    }).catch(err=>{
-        console.log(err)
-    })
-})
+        res.json(result);
+    } catch (err) {
+        res.status(422).json({ error: err });
+    }
+});
 
+router.put('/updatepic', requireLogin, async (req, res) => {  // issue here
+    try {
+        const result = await User.findByIdAndUpdate(
+            req.user._id,
+            { $set: { pic: req.body.pic } },
+            {
+                new: true,
+                runValidators: true,
+                useFindAndModify: false,
+              }
+        );
+        if (!result) {
+            return res.status(422).json({ error: "Picture cannot be updated" });
+        }
 
-module.exports = router
+        res.json(result);
+    } catch (err) {
+        res.status(422).json({ error: err });
+    }
+});
+
+router.post('/search-users', async (req, res) => {
+    try {
+        const userPattern = new RegExp("^" + req.body.query);
+        const users = await User.find({ email: { $regex: userPattern } }).select("_id email");
+        res.json({ user: users });
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: "Something went wrong" });
+    }
+});
+
+module.exports = router;

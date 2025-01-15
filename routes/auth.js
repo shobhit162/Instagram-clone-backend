@@ -6,18 +6,17 @@ const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const {JWT_SECRET} = require('../config/keys')
-const requireLogin = require('../middleware/requireLogin')
 const nodemailer = require('nodemailer')
-const sendgridTransport = require('nodemailer-sendgrid-transport')
-const SendmailTransport = require('nodemailer/lib/sendmail-transport')
-const {SENDGRID_API,EMAIL} = require('../config/keys')
+const {EMAIL, SMTP_MAIL, SMTP_MAIL_PASSWORD} = require('../config/keys')
 
-
-const transporter = nodemailer.createTransport(sendgridTransport({
-    auth:{
-        api_key:SENDGRID_API
-    }
-}))
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    host: 'smtp.gmail.com',
+    auth: {
+      user: SMTP_MAIL,
+      pass: SMTP_MAIL_PASSWORD,
+    },
+  });
 
 // router.get('/protected',requireLogin,(req,res)=>{
 //     res.send("hello user")
@@ -114,6 +113,13 @@ router.post('/reset-password',(req,res)=>{
                       <p>You requested for password reset</p>
                       <h5>Click in this <a href="${EMAIL}/reset/${token}">link</a> to reset password</h5>
                       `
+                  },
+                  function (err, data) {
+                      if (err) {
+                          console.log('Error Occurs', err);
+                      } else {
+                          console.log('Email sent successfully');
+                      }
                   })
                   res.json({message:"Check your email"})
               })

@@ -4,7 +4,6 @@ const mongoose = require('mongoose')
 const requireLogin = require('../middleware/requireLogin')
 const Post = mongoose.model("Post")
 
-
 router.get('/allpost',requireLogin,(req,res)=>{
     Post.find()
     .populate("postedBy","_id name pic")
@@ -54,7 +53,7 @@ router.post('/createpost',requireLogin,(req,res)=>{
 
 router.get('/mypost',requireLogin,(req,res)=>{
     Post.find({postedBy:req.user._id})
-    .populate("PostedBy","_id name")
+    .populate("postedBy","_id name")
     .then(mypost=>{
         res.json({mypost})
     })
@@ -68,12 +67,10 @@ router.put('/like',requireLogin,(req,res)=>{
         $push:{likes:req.user._id}
     },{
         new:true
-    }).exec((err,result)=>{
-        if(err){
-            return res.status(422).json({error:err})
-        }else{
-            res.json(result)
-        }
+    }).then((result)=>{
+        res.json(result)
+    }).catch(err=>{
+        return res.status(422).json({error:err})
     })
 })
 
@@ -82,12 +79,10 @@ router.put('/unlike',requireLogin,(req,res)=>{
         $pull:{likes:req.user._id}
     },{
         new:true
-    }).exec((err,result)=>{
-        if(err){
-            return res.status(422).json({error:err})
-        }else{
-            res.json(result)
-        }
+    }).then((result)=>{
+        res.json(result)
+    }).catch(err=>{
+        return res.status(422).json({error:err})
     })
 })
 
@@ -103,32 +98,35 @@ router.put('/comment',requireLogin,(req,res)=>{
     })
     .populate("comments.postedBy","_id name")
     .populate("postedBy","_id name")
-    .exec((err,result)=>{
-        if(err){
-            return res.status(422).json({error:err})
-        }else{
-            res.json(result)
-        }
+    .then((result)=>{
+        res.json(result)
+    }).catch(err=>{
+        return res.status(422).json({error:err})
     })
 })
 
-router.delete('/deletepost/:postId',requireLogin,(req,res)=>{
-    Post.findOne({_id:req.params.postId})
-    .populate("postedBy","_id")
-    .exec((err,post)=>{
-        if(err || !post){
-            return res.status(422).json({error:err})
+router.delete('/deletepost/:postId', requireLogin, async (req, res) => {
+    try {
+        const post = await Post.findOne({ _id: req.params.postId }).populate("postedBy", "_id");
+
+        if (!post) {
+            return res.status(404).json({ error: "Post not found" });
         }
-        if(post.postedBy._id.toString() === req.user._id.toString()){
-           post.remove()
-           .then(result=>{
-               res.json(result)
-           }).catch(err=>{
-               console.log(err)
-           })
+
+        if (post.postedBy._id.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ error: "Unauthorized action" });
         }
-    })
-})
+
+        // Delete the post
+        await Post.deleteOne({ _id: req.params.postId });
+
+        res.json({ message: "Post deleted successfully", _id: req.params.postId});
+    } catch (err) {
+        res.status(422).json({ error: err.message });
+    }
+});
+
+
 
 router.delete('/deletecomment/:id/:commentid',requireLogin,(req,res)=>{
     const comment = {_id:req.params.commentid}
@@ -143,13 +141,11 @@ router.delete('/deletecomment/:id/:commentid',requireLogin,(req,res)=>{
     )
     .populate("comments.postedBy","id name")
     .populate("postedBy","_id name")
-    .exec((err,postComment)=>{
-        if(err || !postComment){
-            return res.status(422).json({error:err})
-        }else{
-            const result = postComment
-            res.json(result)
-        }
+    .then((postComment)=>{
+        const result = postComment
+        res.json(result)
+    }).catch(err=>{
+        return res.status(422).json({error:err})
     })
 })
 

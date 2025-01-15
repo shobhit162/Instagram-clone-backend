@@ -1,15 +1,14 @@
 const express = require('express')
 const app = express()
 const mongoose = require('mongoose')
-const PORT = process.env.PORT || 5000
-const {MONGOURL} = require('./config/prod')
+const PORT = process.env.PORT || 3000
+const {MONGOURL} = require('./config/keys')
+const cors = require('cors');
 
+app.use(cors());
 
+mongoose.connect(MONGOURL);
 
-mongoose.connect(MONGOURL,{
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
 mongoose.connection.on('connected',()=>{
     console.log("conected to mongo")
 })
